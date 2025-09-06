@@ -1,0 +1,165 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ query }} - 搜索结果{% endblock %}
+
+{% block content %}
+<header class="results-header">
+    <a href="/" class="header-title">
+        <img src="{{ url_for('static', filename='rucicon.png') }}" alt="RUC Logo" class="header-logo">
+        RUCeek
+    </a>
+    <form action="/search" method="get" class="search-form-results">
+        <div class="search-container-results">
+            <div class="advanced-search-button" onclick="toggleAdvancedMenu()">
+                <!-- <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M9 21c0 .5.4 1 1 1s1-.5 1-1v-1H9v1zm3-19C8.1 2 5 5.1 5 9c0 2.4 1.2 4.5 3 5.7V17c0 .5.4 1 1 1h6c.6 0 1-.5 1-1v-2.3c1.8-1.3 3-3.4 3-5.7 0-3.9-3.1-7-7-7zm2.85 11.1l-.85.6V16h-4v-2.3l-.85-.6C7.8 12.2 7 10.7 7 9c0-2.8 2.2-5 5-5s5 2.2 5 5c0 1.7-.8 3.2-2.15 4.1z"/>
+                </svg> -->
+                <span class="button-label">💡高级语法</span>
+            </div>
+            <input type="search" name="q" id="search-input-results" class="search-bar" value="{{ query }}" autocomplete="off">
+            <div class="search-icon" onclick="performSearchResults()">
+                <svg focusable="false" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                    <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"></path>
+                </svg>
+            </div>
+            
+            <!-- 高级搜索下拉菜单 -->
+            <div class="advanced-menu" id="advanced-menu">
+                <div class="menu-item" onclick="insertSyntaxResults('&quot;&quot;', 1)">
+                    <div class="syntax-example">"精确短语"</div>
+                    <div class="syntax-description">搜索包含完整短语的结果</div>
+                </div>
+                <div class="menu-item" onclick="insertSyntaxResults('inurl:', 6)">
+                    <div class="syntax-example">inurl:关键词</div>
+                    <div class="syntax-description">搜索URL中包含特定关键词的页面</div>
+                </div>
+                <div class="menu-item" onclick="insertSyntaxResults('site:', 5)">
+                    <div class="syntax-example">site:域名</div>
+                    <div class="syntax-description">限定在特定网站内搜索</div>
+                </div>
+                <div class="menu-item" onclick="insertSyntaxResults('site: OR site:', 13)">
+                    <div class="syntax-example">site:A OR site:B</div>
+                    <div class="syntax-description">在多个指定网站中搜索</div>
+                </div>
+                <div class="menu-item" style="cursor: default; opacity: 0.7;">
+                    <div class="syntax-example">⏰搜索时间可能较长，请耐心等待</div>
+                    <div class="syntax-description">更多语法开发中...</div>
+                </div>
+            </div>
+        </div>
+    </form>
+</header>
+
+<main class="results-main">
+    {% if query %}
+    <div class="results-info">
+        找到约 {{ total_results }} 条结果 (耗时 {{ time_ms }} 毫秒)
+    </div>
+
+    <div class="results-list">
+        {% for item in results %}
+        <div class="result-item">
+            <div class="result-header">
+                <img src="https://www.google.com/s2/favicons?domain={{ item.url.split('://')[1].split('/')[0] }}" class="site-favicon" alt="网站图标" onerror="this.style.display='none'">
+                <a href="{{ item.url }}" class="result-title" target="_blank">{{ item.title }}</a>
+            </div>
+            <div class="result-url">{{ item.url }}</div>
+            <div class="result-snippet">
+                {# 使用 |safe 过滤器告诉 Jinja2 不要转义我们的 <mark> 标签 #}
+                {{ item.snippet_html | safe }}
+            </div>
+        </div>
+        {% else %}
+        <p>未能找到与“<strong>{{ query }}</strong>”相关的任何文档。</p>
+        {% endfor %}
+    </div>
+
+    {# Google风格分页控件 #}
+    <div class="pagination">
+        {% set total_pages = ((total_results - 1) // page_size) + 1 %}
+        {% set start_page = [1, page - 5]|max %}
+        {% set end_page = [total_pages, page + 5]|min %}
+        
+        {# 上一页 #}
+        {% if page > 1 %}
+        <a href="{{ url_for('search', q=query, page=page-1) }}" class="page-link prev">&laquo; 上一页</a>
+        {% endif %}
+        
+        {# 第一页和省略号 #}
+        {% if start_page > 1 %}
+        <a href="{{ url_for('search', q=query, page=1) }}" class="page-link">1</a>
+        {% if start_page > 2 %}
+        <span class="page-ellipsis">...</span>
+        {% endif %}
+        {% endif %}
+        
+        {# 页码数字 #}
+        {% for p in range(start_page, end_page + 1) %}
+        {% if p == page %}
+        <span class="page-link current">{{ p }}</span>
+        {% else %}
+        <a href="{{ url_for('search', q=query, page=p) }}" class="page-link">{{ p }}</a>
+        {% endif %}
+        {% endfor %}
+        
+        {# 最后一页和省略号 #}
+        {% if end_page < total_pages %}
+        {% if end_page < total_pages - 1 %}
+        <span class="page-ellipsis">...</span>
+        {% endif %}
+        <a href="{{ url_for('search', q=query, page=total_pages) }}" class="page-link">{{ total_pages }}</a>
+        {% endif %}
+        
+        {# 下一页 #}
+        {% if page < total_pages %}
+        <a href="{{ url_for('search', q=query, page=page+1) }}" class="page-link next">下一页 &raquo;</a>
+        {% endif %}
+    </div>
+    {% endif %}
+</main>
+
+<script>
+function toggleAdvancedMenu() {
+    const menu = document.getElementById('advanced-menu');
+    menu.classList.toggle('show');
+}
+
+function insertSyntaxResults(syntax, cursorOffset) {
+    const searchInput = document.getElementById('search-input-results');
+    const currentValue = searchInput.value;
+    
+    // 如果搜索框不为空，在前面加一个空格
+    const prefix = currentValue ? currentValue + ' ' : '';
+    
+    searchInput.value = prefix + syntax;
+    
+    // 设置光标位置
+    const cursorPosition = prefix.length + cursorOffset;
+    searchInput.setSelectionRange(cursorPosition, cursorPosition);
+    
+    // 聚焦到搜索框
+    searchInput.focus();
+    
+    // 隐藏菜单
+    document.getElementById('advanced-menu').classList.remove('show');
+}
+
+// 执行搜索
+function performSearchResults() {
+    const searchInput = document.getElementById('search-input-results');
+    if (searchInput.value.trim() !== '') {
+        document.querySelector('.search-form-results').submit();
+    }
+}
+
+// 点击其他地方时隐藏菜单
+document.addEventListener('click', function(event) {
+    const menu = document.getElementById('advanced-menu');
+    const button = document.querySelector('.advanced-search-button');
+    
+    if (!menu.contains(event.target) && !button.contains(event.target)) {
+        menu.classList.remove('show');
+    }
+});
+</script>
+{% endblock %}
